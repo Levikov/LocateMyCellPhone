@@ -22,11 +22,9 @@ namespace Math2016
             
             for (int i = 0; i < c.tCount; i++)
             {
-                c.Init(i);
-                c.Process(i);
-                c.t[i].Pos = c.CalcCenter();
-                c.t[i].pCnt = c.gPos.Count;
-                Console.WriteLine($"{c.gPos.Count}\t{i}/{c.tCount}\tTime Remaining:{TimeSpan.FromMilliseconds((double)s.ElapsedMilliseconds/(double)(i+1)*(double)(c.tCount-i-1))}");
+                c.t[i].Pos = c.Process(i, 5);
+                c.t[i].pCnt = 0;
+                Console.WriteLine($"{c.t[i].Pos.X},{c.t[i].Pos.Y},{c.t[i].Pos.Z}\t{i}/{c.tCount}\tTime Remaining:{TimeSpan.FromMilliseconds((double)s.ElapsedMilliseconds/(double)(i+1)*(double)(c.tCount-i-1))}");
             }
             string[] test_out = new string[c.tCount];
             for (int i = 0; i < c.tCount; i++)
@@ -112,6 +110,14 @@ namespace Math2016
             this.gPos = Sphere.intersect(A, B, 1);
             return;
         }
+
+        public List<Vector3D> Init(int indexOfTerminal,int indexOfStart)
+        {
+            double o1o2 = (sPos[t[indexOfTerminal].d[indexOfStart].index] - sPos[t[indexOfTerminal].d[indexOfStart+1].index]).Length;
+            Sphere A = new Sphere(t[indexOfTerminal].d[indexOfStart].d, sPos[t[indexOfTerminal].d[indexOfStart].index]);
+            Sphere B = new Sphere(t[indexOfTerminal].d[indexOfStart+1].d, sPos[t[indexOfTerminal].d[indexOfStart+1].index]);
+            return Sphere.intersect(A, B, 1);
+        }
         public void Process(int indexOfTerminal)
         {
             for (int i = 0; i < sCount; i++)
@@ -127,12 +133,55 @@ namespace Math2016
         }
 
 
+        public Vector3D Process(int indexOfTerminal,int CountOfStations)
+        {
+            double sumweight = 0;
+            Vector3D center = new Vector3D(0, 0, 0);
+            for (int ii = 0; ii < 3; ii++)
+            {
+                List<Vector3D> g_Pos = Init(indexOfTerminal, ii);
+               
+                double weight = 1/Math.Sqrt(t[indexOfTerminal].d[ii].d);
+                for (int i = 0; i < CountOfStations; i++)
+                {
+                    List<Vector3D> result = new List<Vector3D>();
+                    for (int j = 2; j < g_Pos.Count; j++)
+                    {
+                        if (isIn(indexOfTerminal, ii+i, j,g_Pos)) result.Add(g_Pos[j]);
+                    };
+                    if (result.Count == 0) break;
+                    else g_Pos = result;
+                }
+                if (g_Pos.Count == 0)
+                {
+                    continue;
+                }
+                else
+                {
+                    Vector3D _center = CalcCenter(g_Pos);
+                    center += _center * weight;
+                    sumweight += weight;
+                    Console.WriteLine($"{indexOfTerminal}\t{ii}\t{_center.X},{_center.Y},{_center.Z}");
+                }
+            }
+            return center / sumweight;  
+        }
+
+
         private bool isIn(int indexOfTerminal,int indexOfStation,int indexOfGrid)
         {
                 if ((sPos[t[indexOfTerminal].d[indexOfStation].index] - gPos[indexOfGrid]).Length >t[indexOfTerminal].d[indexOfStation].d)
                     return false;
                 else
                     return true;
+        }
+
+        private bool isIn(int indexOfTerminal, int indexOfStation, int indexOfGrid,List<Vector3D> g_Pos)
+        {
+            if ((sPos[t[indexOfTerminal].d[indexOfStation].index] - g_Pos[indexOfGrid]).Length > t[indexOfTerminal].d[indexOfStation].d)
+                return false;
+            else
+                return true;
         }
 
         public Vector3D CalcCenter()
@@ -147,6 +196,19 @@ namespace Math2016
                 sumZ += p.Z/this.gPos.Count;
             });
             return new Vector3D(sumX, sumY ,sumZ);
+        }
+        public Vector3D CalcCenter(List<Vector3D> v)
+        {
+            double sumX = 0;
+            double sumY = 0;
+            double sumZ = 0;
+            Parallel.ForEach<Vector3D>(v, (p) =>
+            {
+                sumX += p.X / v.Count;
+                sumY += p.Y / v.Count;
+                sumZ += p.Z / v.Count;
+            });
+            return new Vector3D(sumX, sumY, sumZ);
         }
 
     }
@@ -209,10 +271,19 @@ namespace Math2016
                 UniX = Vector3D.CrossProduct(UniY, UniZ);
                 UniX.Normalize();
 
-                for (int i = 0; i < nZ + 1; i++)
-                    for (int j = -nR; j < nR + 1; j++)
-                        for (int k = -nR; k < nR + 1; k++)
-                            result.Add(startPoint + (double)i / (double)nZ * Z * UniZ + (double)j / (double)nR * R * UniX + (double)k / (double)nR * R * UniY);
+                try
+                {
+                    for (int i = 0; i < nZ + 1; i++)
+                        for (int j = -nR; j < nR + 1; j++)
+                            for (int k = -nR; k < nR + 1; k++)
+                                result.Add(startPoint + (double)i / (double)nZ * Z * UniZ + (double)j / (double)nR * R * UniX + (double)k / (double)nR * R * UniY);
+
+                }
+                catch (Exception e)
+                {
+                    result.Clear();
+                }
+               
 
             }
             
