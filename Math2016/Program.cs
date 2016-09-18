@@ -4,6 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using System.Windows.Media.Media3D;
+using System.Threading;
+using System.Diagnostics;
 
 namespace Math2016
 {
@@ -12,35 +15,26 @@ namespace Math2016
         static void Main(string[] args)
         {
             args = new string[1];
-            args[0] = @"C:\Users\Jingj\OneDrive\C\竞赛用例_数据\case001_input.txt";
-
-            string[] lines = File.ReadAllLines(args[0]);
-            Case c = new Case();
-            c.sCount = int.Parse(lines[0]);
-            c.tCount = int.Parse(lines[1]);
-            for(int i=0;i<c.sCount;i++)
+            args[0] = @"C:\Users\Jingj\OneDrive\C\测试用例_数据_答案\sample_case002_input.txt";     
+            Case c = new Case(args[0],"test.txt");
+            Stopwatch s = new Stopwatch();
+            s.Start();
+            
+            for (int i = 0; i < c.tCount; i++)
             {
-                string[] xyz = lines[i + 3].Split('\t');
-                c.sPos.Add(new P3D(double.Parse(xyz[0]),double.Parse(xyz[1]),double.Parse(xyz[2])));
-                Console.WriteLine($"Importing {c.sPos.Last()}");
-            };
-            Parallel.For(0, c.tCount, i =>
+                c.Init(i);
+                c.Process(i);
+                c.t[i].Pos = c.CalcCenter();
+                c.t[i].pCnt = c.gPos.Count;
+                Console.WriteLine($"{c.gPos.Count}\t{i}/{c.tCount}\tTime Remaining:{TimeSpan.FromMilliseconds((double)s.ElapsedMilliseconds/(double)(i+1)*(double)(c.tCount-i-1))}");
+            }
+            string[] test_out = new string[c.tCount];
+            for (int i = 0; i < c.tCount; i++)
             {
-                string[] xyz = lines[i + 3+c.sCount].Split('\t');
-                Terminal t = new Terminal(i);
-                Parallel.For(0, c.sCount, j =>
-                {
-                    t.d.Add(new TtoS() {index=j, d=double.Parse(xyz[j]) * 3e8 });
-                    
-                });
-                t.d.Sort();
-                c.t.Add(t);
-               
-            });
-            c.init(c.t[0]);
-
-
-            Console.Read();
+                test_out[i] = $"{c.t[i].Pos.X},{c.t[i].Pos.Y},{c.t[i].Pos.Z},{c.t[i].pCnt}";
+            }
+            File.WriteAllLines("text4.csv", test_out);
+            //Console.Read();
 
         }
     }
@@ -62,8 +56,10 @@ namespace Math2016
     public class Terminal
     {
         public int tid;
-        public P3D Pos;
+        public Vector3D Pos;
         public List<TtoS> d = new List<TtoS>();
+        internal int pCnt;
+
         public Terminal(int id)
         {
             this.tid = id;
@@ -74,108 +70,170 @@ namespace Math2016
     {
         public int sCount;
         public int tCount;
-        public List<P3D> sPos =new List<P3D>();
-        public List<P3D> gPos = new List<P3D>();
+        public List<Vector3D> sPos =new List<Vector3D>();
+        public List<Vector3D> gPos = new List<Vector3D>();
         public List<Terminal> t = new List<Terminal>();
-        public Case()
+        string outname;
+        public Case(string filename,string outfilename)
         {
-
+            outname = outfilename;
+            string[] lines = File.ReadAllLines(filename);
+            sCount = int.Parse(lines[0]);
+            tCount = int.Parse(lines[1]);
+            for (int i = 0; i < sCount; i++)
+            {
+                string[] xyz = lines[i + 3].Split('\t');
+                sPos.Add(new Vector3D(double.Parse(xyz[0]), double.Parse(xyz[1]), double.Parse(xyz[2])));
+                Console.WriteLine($"Importing {sPos.Last()}");
+            };
+            for (int i = 0; i < tCount; i++)
+            {
+                string[] xyz = lines[i + 3 + sCount].Split('\t');
+                Terminal tt = new Terminal(i);
+                for (int j = 0; j < sCount; j++)
+                {
+                    tt.d.Add(new TtoS() { index = j, d = double.Parse(xyz[j]) * 3e8 });
+                };
+                tt.d.Sort();
+                for (int j = 0; j < sCount; j++)
+                {
+                    if (j >= 3) tt.d[j].d = tt.d[j].d * 1.0;
+                }
+                t.Add(tt);
+            };
 
         }
 
-        public void init(Terminal t)
+        public void Init(int i)
         {
-            P3D min = new P3D(sPos[t.d[0].index].X-t.d[0].d<= sPos[t.d[1].index].X - t.d[1].d? sPos[t.d[0].index].X - t.d[0].d: sPos[t.d[1].index].X - t.d[1].d, sPos[t.d[0].index].Y - t.d[0].d <= sPos[t.d[1].index].Y - t.d[1].d ? sPos[t.d[0].index].Y - t.d[0].d : sPos[t.d[1].index].Y - t.d[1].d, sPos[t.d[0].index].Z - t.d[0].d <= sPos[t.d[1].index].Z - t.d[1].d ? sPos[t.d[0].index].Z - t.d[0].d : sPos[t.d[1].index].Z - t.d[1].d);
-            P3D max = new P3D(sPos[t.d[0].index].X +t.d[0].d >= sPos[t.d[1].index].X +t.d[1].d ? sPos[t.d[0].index].X +t.d[0].d : sPos[t.d[1].index].X +t.d[1].d, sPos[t.d[0].index].Y +t.d[0].d >= sPos[t.d[1].index].Y +t.d[1].d ? sPos[t.d[0].index].Y +t.d[0].d : sPos[t.d[1].index].Y +t.d[1].d, sPos[t.d[0].index].Z +t.d[0].d >= sPos[t.d[1].index].Z +t.d[1].d ? sPos[t.d[0].index].Z +t.d[0].d : sPos[t.d[1].index].Z +t.d[1].d);
-            int xdiv = (int)(max.X - min.X);
-            int ydiv = (int)(max.Y - min.Y);
-            int zdiv = (int)(max.Z - min.Z);
-            double incX = (max.X - min.X) / xdiv;
-            double incY = (max.Y - min.Y) / ydiv;
-            double incZ = (max.Z - min.Z) / zdiv;
-            for(int i=0;i<xdiv+1;i++)for(int j=0;j<ydiv+1;j++)for(int k=0;i<zdiv+1;k++)
-            gPos.Add(new P3D(min.X+i*incX,min.Y+i*incY,min.Z+i*incZ));
-
-
+            double o1o2 = (sPos[t[i].d[0].index] - sPos[t[i].d[1].index]).Length;
+            Sphere A = new Sphere(t[i].d[0].d, sPos[t[i].d[0].index]);
+            Sphere B = new Sphere(t[i].d[1].d, sPos[t[i].d[1].index]);
+            this.gPos = Sphere.intersect(A, B, 1);
+            return;
+        }
+        public void Process(int indexOfTerminal)
+        {
+            for (int i = 0; i < sCount; i++)
+            {
+                List<Vector3D> result = new List<Vector3D>();
+                 for(int j=0;j<gPos.Count;j++)
+                  {
+                      if (isIn(indexOfTerminal, i, j)) result.Add(gPos[j]);
+                  };
+                if (result.Count == 0) return;
+                else gPos = result;
+            }
         }
 
-        public P3D CalcCenter()
+
+        private bool isIn(int indexOfTerminal,int indexOfStation,int indexOfGrid)
+        {
+                if ((sPos[t[indexOfTerminal].d[indexOfStation].index] - gPos[indexOfGrid]).Length >t[indexOfTerminal].d[indexOfStation].d)
+                    return false;
+                else
+                    return true;
+        }
+
+        public Vector3D CalcCenter()
         {
             double sumX = 0;
             double sumY = 0;
             double sumZ = 0;
-            Parallel.ForEach<P3D>(this.gPos, (p) =>
+            Parallel.ForEach<Vector3D>(this.gPos, (p) =>
             {
-                sumX += p.X;
-                sumY += p.Y;
-                sumZ += p.Z;
+                sumX += p.X/this.gPos.Count;
+                sumY += p.Y /this.gPos.Count;
+                sumZ += p.Z/this.gPos.Count;
             });
-            return new P3D(sumX / this.gPos.Count, sumY / this.gPos.Count, sumZ / this.gPos.Count);
+            return new Vector3D(sumX, sumY ,sumZ);
         }
 
     }
-
-    
-
-
     class Sphere
     {
+
+        
         public double r;
-        public P3D c;
-        public Sphere(double radius,P3D p)
+        public Vector3D c;
+        public Sphere(double radius,Vector3D p)
         {
             this.r = radius;
             this.c = p;
         }
-        public static List<P3D> intersect(Sphere A,Sphere B,double grid)
+        public static bool isAinB(Sphere A, Sphere B)
         {
-            List<P3D> result = new List<P3D>();
+            double r1 = A.r;
+            double r2 = B.r;
+            double d = (A.c - B.c).Length;
+            if ((d + r1) <= r2) return true;
+            else return false;
+        }
+        public static List<Vector3D> intersect(Sphere A,Sphere B,double grid)
+        {
+            double r1 = A.r;
+            double r2 = B.r;
+            double d = (A.c - B.c).Length;
+            double cos = (r1 * r1 + d * d - r2 * r2) / (2 * r1 * d);
+            double sin = Math.Sqrt(1 - cos * cos);
+            double cross = r1 + r2 - d;
+            List<Vector3D> result = new List<Vector3D>();
+            if (isAinB(A, B))
+            {
+                int div = (int)(A.r / grid * 2);
+                for (int i = 0; i < div + 1; i++) for (int j = 0; j < div + 1; j++) for (int k = 0; k < div + 1; k++)
+                            result.Add(new Vector3D(A.c.X-A.r+(double)i/(double)div*2*A.r, A.c.Y - A.r + (double)i / (double)div * 2 * A.r, A.c.Z - A.r + (double)i / (double)div * 2 * A.r));
+            }
+            else
+            {
+                double Z = A.r + B.r - (A.c - B.c).Length;
+                double R = r1 * sin;
+                int nZ = (int)(Z / grid);
+                int nR = (int)(R / grid);
+                Vector3D UniZ = (B.c - A.c);
+                Vector3D UniY = new Vector3D(0, 0, 0);
+                Vector3D UniX = new Vector3D(0, 0, 0);
 
+                UniZ.Normalize();
+                Vector3D startPoint = A.c + UniZ * r1 * cos;
+                if (Vector3D.AngleBetween(new Vector3D(0, 0, 1), UniZ) == 0 || Vector3D.AngleBetween(new Vector3D(0, 0, 1), UniZ) == 180)
+                {
+                    UniY = new Vector3D(1, 0, 0);
+                }
+                else if (Vector3D.AngleBetween(new Vector3D(0, 0, 1), UniZ) == 90) UniY = new Vector3D(0, 0, 1);
+                else
+                {
+                    UniY = new Vector3D(0, 0, 1) - UniZ * (Math.Cos(Vector3D.AngleBetween(new Vector3D(0, 0, 1), UniZ) / 180 * Math.PI));
+                    UniY.Normalize();
+                }
+                UniX = Vector3D.CrossProduct(UniY, UniZ);
+                UniX.Normalize();
 
+                for (int i = 0; i < nZ + 1; i++)
+                    for (int j = -nR; j < nR + 1; j++)
+                        for (int k = -nR; k < nR + 1; k++)
+                            result.Add(startPoint + (double)i / (double)nZ * Z * UniZ + (double)j / (double)nR * R * UniX + (double)k / (double)nR * R * UniY);
+
+            }
+            
+            
+           
             return result;
         }
+        public bool isIn(Vector3D p)
+        {
+            if ((p - c).Length <= r)
+                return true;
+            else
+                return false;
+        }
+
+
+
+
 
     }
 
-    public class P3D
-    {
-        public double X;
-        public double Y;
-        public double Z;
-        public P3D(double a, double b, double c)
-        {
-            X = a;
-            Y = b;
-            Z = c;
-
-        }
-        public static P3D operator+(P3D a,P3D b)
-        {
-            return new P3D(a.X+b.X,a.Y+b.Y,a.Z+b.Z); 
-        }
-        public static P3D operator -(P3D a, P3D b)
-        {
-            return new P3D(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
-        }
-        public static P3D operator *(P3D a, double b)
-        {
-            return new P3D(a.X*b, a.Y*b, a.Z*b);
-        }
-        public static P3D operator *(double b,P3D a)
-        {
-            return new P3D(a.X * b, a.Y * b, a.Z * b);
-        }
-        public static P3D operator /(P3D a, double b)
-        {
-            return new P3D(a.X/b, a.Y/b, a.Z/b);
-        }
-        public static double operator ~(P3D a)
-        {
-            return (Math.Sqrt(a.X*a.X+a.Y*a.Y+a.Z*a.Z));
-        }
-        public override string ToString()
-        {
-            return $"{X},\t{Y},\t{Z}";
-        }
-    }
+    
+   
 }
