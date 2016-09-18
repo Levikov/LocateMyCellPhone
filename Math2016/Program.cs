@@ -25,8 +25,8 @@ namespace Math2016
                 c.Init(i);
                 c.Process(i);
                 c.t[i].Pos = c.CalcCenter();
-                c.t[i].pCnt = c.gPos.Count;
-                Console.WriteLine($"{c.gPos.Count}\t{i}/{c.tCount}\tTime Remaining:{TimeSpan.FromMilliseconds((double)s.ElapsedMilliseconds/(double)(i+1)*(double)(c.tCount-i-1))}");
+                c.t[i].pCnt = c.gPos.Count();
+                Console.WriteLine($"{c.gPos.Count()}\t{i}/{c.tCount}\tTime Remaining:{TimeSpan.FromMilliseconds((double)s.ElapsedMilliseconds/(double)(i+1)*(double)(c.tCount-i-1))}");
             }
             string[] test_out = new string[c.tCount];
             for (int i = 0; i < c.tCount; i++)
@@ -71,7 +71,7 @@ namespace Math2016
         public int sCount;
         public int tCount;
         public List<Vector3D> sPos =new List<Vector3D>();
-        public List<Vector3D> gPos = new List<Vector3D>();
+        public Grid gPos;
         public List<Terminal> t = new List<Terminal>();
         string outname;
         public Case(string filename,string outfilename)
@@ -109,27 +109,50 @@ namespace Math2016
             double o1o2 = (sPos[t[i].d[0].index] - sPos[t[i].d[1].index]).Length;
             Sphere A = new Sphere(t[i].d[0].d, sPos[t[i].d[0].index]);
             Sphere B = new Sphere(t[i].d[1].d, sPos[t[i].d[1].index]);
-            this.gPos = Sphere.intersect(A, B, 1);
+            this.gPos = Sphere.Intersect(A, B, 1);
             return;
         }
         public void Process(int indexOfTerminal)
         {
-            for (int i = 0; i < sCount; i++)
+            for (int indexOfStation = 0; indexOfStation < sCount; indexOfStation++)
             {
-                List<Vector3D> result = new List<Vector3D>();
-                 for(int j=0;j<gPos.Count;j++)
-                  {
-                      if (isIn(indexOfTerminal, i, j)) result.Add(gPos[j]);
-                  };
-                if (result.Count == 0) return;
+                Grid result = new Grid();
+                result = gPos;
+
+                Parallel.For(0, gPos.XCount + 1, i =>
+                {
+                    Parallel.For(0, gPos.YCount + 1, j =>
+                    {
+                        Parallel.For(0, gPos.ZCount + 1, k =>
+                        {
+                            if (isIn(indexOfTerminal, indexOfStation, gPos.GetPoint(i, j, k)))
+                                result.Flag[i, j, k] = true;
+                            else result.Flag[i, j, k] = false;
+
+                        });
+                    });
+                });
+                bool testflag = false;
+                Parallel.For(0, gPos.XCount + 1, i =>
+                {
+                    Parallel.For(0, gPos.YCount + 1, j =>
+                    {
+                        Parallel.For(0, gPos.ZCount + 1, k =>
+                        {
+                            testflag = testflag | result.Flag[i, j, k];
+
+                        });
+                    });
+                });
+                if (testflag == false) return;
                 else gPos = result;
             }
         }
 
 
-        private bool isIn(int indexOfTerminal,int indexOfStation,int indexOfGrid)
+        private bool isIn(int indexOfTerminal,int indexOfStation,Vector3D testPoint)
         {
-                if ((sPos[t[indexOfTerminal].d[indexOfStation].index] - gPos[indexOfGrid]).Length >t[indexOfTerminal].d[indexOfStation].d)
+                if ((sPos[t[indexOfTerminal].d[indexOfStation].index] - testPoint).Length >t[indexOfTerminal].d[indexOfStation].d)
                     return false;
                 else
                     return true;
@@ -140,12 +163,18 @@ namespace Math2016
             double sumX = 0;
             double sumY = 0;
             double sumZ = 0;
-            Parallel.ForEach<Vector3D>(this.gPos, (p) =>
-            {
-                sumX += p.X/this.gPos.Count;
-                sumY += p.Y /this.gPos.Count;
-                sumZ += p.Z/this.gPos.Count;
-            });
+            int Cnt = gPos.Count();
+            for (int i = 0; i < gPos.XCount + 1; i++) for (int j = 0; j < gPos.YCount + 1; j++) for (int k = 0; k < gPos.ZCount + 1; k++)
+                    {
+                        if (gPos.Flag[i, j, k])
+                        {
+                            Vector3D p = gPos.GetPoint(i, j, k);
+                            sumX += p.X / Cnt;
+                            sumY += p.Y / Cnt;
+                            sumZ += p.Z / Cnt;
+                        }
+                    }
+                
             return new Vector3D(sumX, sumY ,sumZ);
         }
 
@@ -169,7 +198,7 @@ namespace Math2016
             if ((d + r1) <= r2) return true;
             else return false;
         }
-        public static List<Vector3D> intersect(Sphere A,Sphere B,double grid)
+        public static Grid Intersect(Sphere A,Sphere B,double grid)
         {
             double r1 = A.r;
             double r2 = B.r;
@@ -177,12 +206,10 @@ namespace Math2016
             double cos = (r1 * r1 + d * d - r2 * r2) / (2 * r1 * d);
             double sin = Math.Sqrt(1 - cos * cos);
             double cross = r1 + r2 - d;
-            List<Vector3D> result = new List<Vector3D>();
+            
             if (isAinB(A, B))
             {
-                int div = (int)(A.r / grid * 2);
-                for (int i = 0; i < div + 1; i++) for (int j = 0; j < div + 1; j++) for (int k = 0; k < div + 1; k++)
-                            result.Add(new Vector3D(A.c.X-A.r+(double)i/(double)div*2*A.r, A.c.Y - A.r + (double)i / (double)div * 2 * A.r, A.c.Z - A.r + (double)i / (double)div * 2 * A.r));
+                return new Grid(2 * A.r, 2 * A.r, 2 * A.r, new Vector3D(0, 0, 1), A.c - new Vector3D(0, 0, A.r), 1);
             }
             else
             {
@@ -191,34 +218,11 @@ namespace Math2016
                 int nZ = (int)(Z / grid);
                 int nR = (int)(R / grid);
                 Vector3D UniZ = (B.c - A.c);
-                Vector3D UniY = new Vector3D(0, 0, 0);
-                Vector3D UniX = new Vector3D(0, 0, 0);
-
                 UniZ.Normalize();
                 Vector3D startPoint = A.c + UniZ * r1 * cos;
-                if (Vector3D.AngleBetween(new Vector3D(0, 0, 1), UniZ) == 0 || Vector3D.AngleBetween(new Vector3D(0, 0, 1), UniZ) == 180)
-                {
-                    UniY = new Vector3D(1, 0, 0);
-                }
-                else if (Vector3D.AngleBetween(new Vector3D(0, 0, 1), UniZ) == 90) UniY = new Vector3D(0, 0, 1);
-                else
-                {
-                    UniY = new Vector3D(0, 0, 1) - UniZ * (Math.Cos(Vector3D.AngleBetween(new Vector3D(0, 0, 1), UniZ) / 180 * Math.PI));
-                    UniY.Normalize();
-                }
-                UniX = Vector3D.CrossProduct(UniY, UniZ);
-                UniX.Normalize();
-
-                for (int i = 0; i < nZ + 1; i++)
-                    for (int j = -nR; j < nR + 1; j++)
-                        for (int k = -nR; k < nR + 1; k++)
-                            result.Add(startPoint + (double)i / (double)nZ * Z * UniZ + (double)j / (double)nR * R * UniX + (double)k / (double)nR * R * UniY);
+                return new Grid(2 * R, 2 * R, Z, UniZ, startPoint, 1);
 
             }
-            
-            
-           
-            return result;
         }
         public bool isIn(Vector3D p)
         {
@@ -231,6 +235,75 @@ namespace Math2016
 
 
 
+
+    }
+
+    public class Grid
+    {
+
+        public Vector3D O;
+        public Vector3D X;
+        public Vector3D Y;
+        public Vector3D Z;
+        public int XCount;
+        public int YCount;
+        public int ZCount;
+        public double Xdiv;
+        public double Ydiv;
+        public double Zdiv;
+        public double Height;
+        public double Width;
+        public double Length;
+        public double epsilon;
+        public bool[,,] Flag;
+        public List<Vector3D> Points;
+        public Grid(double L,double W,double H,Vector3D z,Vector3D Origin,double e)
+        {
+            XCount =(int)( L / e);
+            YCount = (int)(W / e);
+            ZCount = (int)(H / e);
+            Xdiv = L / XCount;
+            Ydiv = W / YCount;
+            Zdiv = H / ZCount;
+            Length = L;
+            Width = W;
+            Height = H;
+            epsilon = e;
+            Flag = new bool[XCount+1,YCount+1,ZCount+1];
+            for (int i = 0; i < XCount + 1; i++) for (int j = 0; j < YCount + 1; j++) for (int k = 0; k < ZCount + 1; k++)
+                        Flag[i, j, k] = true;
+            O = Origin;
+            Z = z;
+            Z.Normalize();
+            if (Vector3D.AngleBetween(new Vector3D(0, 0, 1), Z) == 0 || Vector3D.AngleBetween(new Vector3D(0, 0, 1), Z) == 180)
+            {
+                Y = new Vector3D(1, 0, 0);
+            }
+            else if (Vector3D.AngleBetween(new Vector3D(0, 0, 1), Z) == 90) Y = new Vector3D(0, 0, 1);
+            else
+            {
+                Y = new Vector3D(0, 0, 1) - Z * (Math.Cos(Vector3D.AngleBetween(new Vector3D(0, 0, 1), Z) / 180 * Math.PI));
+                Y.Normalize();
+            }
+            X = Vector3D.CrossProduct(Y, Z);
+            X.Normalize();
+            Points = new List<Vector3D>();
+
+        }
+        public Grid()
+        { }
+        public Vector3D GetPoint(int i, int j,int k)
+        {
+            return (O+i*Xdiv*X-0.5*Length*X+j*Ydiv*Y - 0.5 * Width * Y + k*Zdiv*Z);
+        }
+        public int Count()
+        {
+            int sum = 0;
+            for (int i = 0; i < XCount + 1; i++) for (int j = 0; j < YCount + 1; j++) for (int k = 0; k < ZCount + 1; k++)
+                        if (Flag[i, j, k] == true) sum++;
+            return sum;
+        }
+        
 
     }
 
