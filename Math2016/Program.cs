@@ -14,25 +14,26 @@ namespace Math2016
     {
         static void Main(string[] args)
         {
-            args = new string[1];
-            args[0] = @"C:\Users\Jingj\OneDrive\C\测试用例_数据_答案\sample_case002_input.txt";     
-            Case c = new Case(args[0],"test.txt");
-            Stopwatch s = new Stopwatch();
-            s.Start();
+            string fname = args[0];
+                Case c = new Case(fname, "test.txt");
+                Stopwatch s = new Stopwatch();
+                int prog = 0;
+                s.Start(); Parallel.For(0, c.tCount, i =>
+                {
+                    prog++;
+                    c.t[i].Pos = c.Process(i, c.sCount);
+                    Console.WriteLine($"{c.t[i].Pos.X},{c.t[i].Pos.Y},{c.t[i].Pos.Z}\t{prog}/{c.tCount}\tTime Remaining:{TimeSpan.FromMilliseconds((double)s.ElapsedMilliseconds / (double)(i + 1) * (double)(c.tCount - i - 1))}");
+                });
+                string[] test_out = new string[c.tCount];
+                string[] test_out2 = new string[c.tCount];
+                for (int i = 0; i < c.tCount; i++)
+                {
+                    test_out[i] = $"{c.t[i].Pos.X},{c.t[i].Pos.Y},{c.t[i].Pos.Z},{c.t[i].pCnt}";
+                    test_out2[2] = $"{c.t[i].Pos.X}\t{c.t[i].Pos.Y}\t{c.t[i].Pos.Z}";
+                }
+                File.WriteAllLines(fname.Substring(0, fname.LastIndexOf('.')) + ".csv", test_out);
+                File.WriteAllLines(fname.Substring(0, fname.LastIndexOf('.')) + "_ans.txt", test_out2);
             
-            for (int i = 0; i < c.tCount; i++)
-            {
-                c.t[i].Pos = c.Process(i, 5);
-                c.t[i].pCnt = 0;
-                Console.WriteLine($"{c.t[i].Pos.X},{c.t[i].Pos.Y},{c.t[i].Pos.Z}\t{i}/{c.tCount}\tTime Remaining:{TimeSpan.FromMilliseconds((double)s.ElapsedMilliseconds/(double)(i+1)*(double)(c.tCount-i-1))}");
-            }
-            string[] test_out = new string[c.tCount];
-            for (int i = 0; i < c.tCount; i++)
-            {
-                test_out[i] = $"{c.t[i].Pos.X},{c.t[i].Pos.Y},{c.t[i].Pos.Z},{c.t[i].pCnt}";
-            }
-            File.WriteAllLines("text4.csv", test_out);
-            //Console.Read();
 
         }
     }
@@ -137,10 +138,9 @@ namespace Math2016
         {
             double sumweight = 0;
             Vector3D center = new Vector3D(0, 0, 0);
-            for (int ii = 0; ii < 3; ii++)
+            for (int ii = 0; ii < sCount-CountOfStations+1; ii++)
             {
                 List<Vector3D> g_Pos = Init(indexOfTerminal, ii);
-               
                 double weight = 1/Math.Sqrt(t[indexOfTerminal].d[ii].d);
                 for (int i = 0; i < CountOfStations; i++)
                 {
@@ -161,10 +161,12 @@ namespace Math2016
                     Vector3D _center = CalcCenter(g_Pos);
                     center += _center * weight;
                     sumweight += weight;
-                    Console.WriteLine($"{indexOfTerminal}\t{ii}\t{_center.X},{_center.Y},{_center.Z}");
+                    
                 }
+                t[indexOfTerminal].pCnt = g_Pos.Count;
             }
-            return center / sumweight;  
+            return center / sumweight;
+            
         }
 
 
@@ -277,12 +279,15 @@ namespace Math2016
                         for (int j = -nR; j < nR + 1; j++)
                             for (int k = -nR; k < nR + 1; k++)
                                 result.Add(startPoint + (double)i / (double)nZ * Z * UniZ + (double)j / (double)nR * R * UniX + (double)k / (double)nR * R * UniY);
-
                 }
                 catch (Exception e)
                 {
-                    result.Clear();
+                    return intersect(A, B, grid * 2);
+
                 }
+
+                    
+                
                
 
             }
