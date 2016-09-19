@@ -14,7 +14,11 @@ namespace Math2016
     {
         static void Main(string[] args)
         {
-            string fname = args[0];
+
+            string[] fnames=Directory.GetFiles(Directory.GetCurrentDirectory(), args[0]);
+
+            foreach (string fname in fnames)
+            {
                 Case c = new Case(fname, "test.txt");
                 Stopwatch s = new Stopwatch();
                 int prog = 0;
@@ -33,7 +37,8 @@ namespace Math2016
                 }
                 File.WriteAllLines(fname.Substring(0, fname.LastIndexOf('.')) + ".csv", test_out);
                 File.WriteAllLines(fname.Substring(0, fname.LastIndexOf('.')) + "_ans.txt", test_out2);
-            
+
+            }
 
         }
     }
