@@ -15,8 +15,9 @@ namespace Math2016
         static void Main(string[] args)
         {
 
-            string[] fnames=Directory.GetFiles(Directory.GetCurrentDirectory(), args[0]);
-
+            //string[] fnames=Directory.GetFiles(Directory.GetCurrentDirectory(), args[0]);
+            string[] fnames = args;
+            //fnames[0] = args[0];
             foreach (string fname in fnames)
             {
                 Case c = new Case(fname, "test.txt");
@@ -32,11 +33,20 @@ namespace Math2016
                 string[] test_out2 = new string[c.tCount];
                 for (int i = 0; i < c.tCount; i++)
                 {
-                    test_out[i] = $"{c.t[i].Pos.X},{c.t[i].Pos.Y},{c.t[i].Pos.Z},{c.t[i].pCnt}";
-                    test_out2[2] = $"{c.t[i].Pos.X}\t{c.t[i].Pos.Y}\t{c.t[i].Pos.Z}";
+                    string csv = $"{c.t[i].Pos.X},{c.t[i].Pos.Y}";
+                    string txt = $"{c.t[i].Pos.X}\t{c.t[i].Pos.Y}";
+                    if (!c.is2D)
+                    {
+                        csv += $",{c.t[i].Pos.Z}";
+                        txt += $"\t{c.t[i].Pos.Z}";
+
+                    }
+
+                    test_out[i] = csv; ;
+                    test_out2[i] = txt;
                 }
-                File.WriteAllLines(fname.Substring(0, fname.LastIndexOf('.')) + ".csv", test_out);
-                File.WriteAllLines(fname.Substring(0, fname.LastIndexOf('.')) + "_ans.txt", test_out2);
+                File.WriteAllLines(fname.Substring(0, fname.LastIndexOf("_input")) + "_ans.csv", test_out);
+                File.WriteAllLines(fname.Substring(0, fname.LastIndexOf("_input")) + "_ans.txt", test_out2);
 
             }
 
@@ -72,22 +82,30 @@ namespace Math2016
 
     public class Case
     {
+        public bool is2D = false;
         public int sCount;
         public int tCount;
         public List<Vector3D> sPos =new List<Vector3D>();
         public List<Vector3D> gPos = new List<Vector3D>();
         public List<Terminal> t = new List<Terminal>();
         string outname;
+        public double gridprec;
         public Case(string filename,string outfilename)
         {
             outname = outfilename;
             string[] lines = File.ReadAllLines(filename);
+            string[] grid = File.ReadAllLines("config.ini");
+            gridprec = int.Parse(grid[0]);
             sCount = int.Parse(lines[0]);
             tCount = int.Parse(lines[1]);
+            if (int.Parse(lines[2]) == 2) is2D = true;
             for (int i = 0; i < sCount; i++)
             {
                 string[] xyz = lines[i + 3].Split('\t');
-                sPos.Add(new Vector3D(double.Parse(xyz[0]), double.Parse(xyz[1]), double.Parse(xyz[2])));
+                if(is2D) sPos.Add(new Vector3D(double.Parse(xyz[0]), double.Parse(xyz[1]), 0));
+                else sPos.Add(new Vector3D(double.Parse(xyz[0]), double.Parse(xyz[1]), double.Parse(xyz[2])));
+
+
                 Console.WriteLine($"Importing {sPos.Last()}");
             };
             for (int i = 0; i < tCount; i++)
@@ -113,7 +131,9 @@ namespace Math2016
             double o1o2 = (sPos[t[i].d[0].index] - sPos[t[i].d[1].index]).Length;
             Sphere A = new Sphere(t[i].d[0].d, sPos[t[i].d[0].index]);
             Sphere B = new Sphere(t[i].d[1].d, sPos[t[i].d[1].index]);
-            this.gPos = Sphere.intersect(A, B, 1);
+            if(is2D) this.gPos = Sphere.intersect2D(A, B, 0.5,this.gridprec);
+            else
+            this.gPos = Sphere.intersect(A, B, 1,this.gridprec);
             return;
         }
 
@@ -122,7 +142,10 @@ namespace Math2016
             double o1o2 = (sPos[t[indexOfTerminal].d[indexOfStart].index] - sPos[t[indexOfTerminal].d[indexOfStart+1].index]).Length;
             Sphere A = new Sphere(t[indexOfTerminal].d[indexOfStart].d, sPos[t[indexOfTerminal].d[indexOfStart].index]);
             Sphere B = new Sphere(t[indexOfTerminal].d[indexOfStart+1].d, sPos[t[indexOfTerminal].d[indexOfStart+1].index]);
-            return Sphere.intersect(A, B, 1);
+            if(is2D)
+            return Sphere.intersect2D(A, B, 0.5,this.gridprec);
+            else
+                return Sphere.intersect(A, B, 1,this.gridprec);
         }
         public void Process(int indexOfTerminal)
         {
@@ -238,8 +261,9 @@ namespace Math2016
             if ((d + r1) <= r2) return true;
             else return false;
         }
-        public static List<Vector3D> intersect(Sphere A,Sphere B,double grid)
+        public static List<Vector3D> intersect(Sphere A, Sphere B, double grid,double limit)
         {
+            double testgrid = limit;
             double r1 = A.r;
             double r2 = B.r;
             double d = (A.c - B.c).Length;
@@ -249,14 +273,26 @@ namespace Math2016
             List<Vector3D> result = new List<Vector3D>();
             if (isAinB(A, B))
             {
+                while ((int)(A.r / grid * 2) * (int)(A.r / grid * 2) * (int)(A.r / grid * 2) > testgrid)
+                {
+                    grid = grid * 1.01;
+                }
+
+
                 int div = (int)(A.r / grid * 2);
                 for (int i = 0; i < div + 1; i++) for (int j = 0; j < div + 1; j++) for (int k = 0; k < div + 1; k++)
-                            result.Add(new Vector3D(A.c.X-A.r+(double)i/(double)div*2*A.r, A.c.Y - A.r + (double)i / (double)div * 2 * A.r, A.c.Z - A.r + (double)i / (double)div * 2 * A.r));
+                            result.Add(new Vector3D(A.c.X - A.r + (double)i / (double)div * 2 * A.r, A.c.Y - A.r + (double)i / (double)div * 2 * A.r, A.c.Z - A.r + (double)i / (double)div * 2 * A.r));
             }
             else
             {
                 double Z = A.r + B.r - (A.c - B.c).Length;
                 double R = r1 * sin;
+
+                while ((int)(Z / grid) * 4 * (int)(R / grid) * (int)(R / grid) > testgrid)
+                {
+                    grid = grid * 1.01;
+                }
+
                 int nZ = (int)(Z / grid);
                 int nR = (int)(R / grid);
                 Vector3D UniZ = (B.c - A.c);
@@ -287,18 +323,86 @@ namespace Math2016
                 }
                 catch (Exception e)
                 {
-                    return intersect(A, B, grid * 2);
+                    return result;
 
                 }
 
-                    
-                
-               
+
+
+
 
             }
+
+
+
+            return result;
+        }
+        public static List<Vector3D> intersect2D(Sphere A, Sphere B, double grid,double limit)
+        {
             
-            
-           
+            double testgrid = limit;
+            double r1 = A.r;
+            double r2 = B.r;
+            double d = (A.c - B.c).Length;
+            double cos = (r1 * r1 + d * d - r2 * r2) / (2 * r1 * d);
+            double sin = Math.Sqrt(1 - cos * cos);
+            double cross = r1 + r2 - d;
+            List<Vector3D> result = new List<Vector3D>();
+            if (isAinB(A, B))
+            {
+                while ((int)(A.r / grid * 2) * (int)(A.r / grid * 2)  > testgrid)
+                {
+                    grid = grid * 1.01;
+                }
+
+
+                int div = (int)(A.r / grid * 2);
+                for (int i = 0; i < div + 1; i++) for (int j = 0; j < div + 1; j++) 
+                            result.Add(new Vector3D(A.c.X - A.r + (double)i / (double)div * 2 * A.r, A.c.Y - A.r + (double)i / (double)div * 2 * A.r, 0));
+            }
+            else
+            {
+                double Z = A.r + B.r - (A.c - B.c).Length;
+                double R = r1 * sin;
+
+                while ((int)(Z / grid) * 4 * (int)(R / grid) > testgrid)
+                {
+                    grid = grid * 1.01;
+                }
+
+                int nZ = (int)(Z / grid);
+                int nR = (int)(R / grid);
+                Vector3D UniZ = (B.c - A.c);
+                Vector3D UniY = new Vector3D(0, 0, 0);
+                Vector3D UniX = new Vector3D(0, 0, 0);
+
+                UniZ.Normalize();
+                Vector3D startPoint = A.c + UniZ * r1 * cos;
+                UniY = new Vector3D(0,0,1);
+                UniY.Normalize();
+                UniX = Vector3D.CrossProduct(UniY, UniZ);
+                UniX.Normalize();
+
+                try
+                {
+                    for (int i = 0; i < nZ + 1; i++)
+                        for (int j = -nR; j < nR + 1; j++)
+                                result.Add(startPoint + (double)i / (double)nZ * Z * UniZ + (double)j / (double)nR * R * UniX);
+                }
+                catch (Exception e)
+                {
+                    return result;
+
+                }
+
+
+
+
+
+            }
+
+
+
             return result;
         }
         public bool isIn(Vector3D p)
